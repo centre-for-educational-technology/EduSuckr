@@ -45,3 +45,7 @@ Add blog_base column to participants table:
   ALTER TABLE prefix_participants ADD COLUMN blog_base char(255);
 Populate blog_base column with data from blog column:
   UPDATE prefix_participants SET blog_base = blog;
+
+== 26.02.2015 == Added new cron to delete old log entries; 0.5.2 to 0.5.3 ==
+- add new line 0 0 1 * * php {edusuckr_root_folder}/clear_log.php to crontab with crontab -e
+- make sure that clear_log.php has permissions (like 775)

@@ -8,4 +8,5 @@ CONFIG
 
 CRONTAB
 - add new line 11 * * * * php {edusuckr_root_folder}/suck_now.php to crontab with crontab -e
-- make sure that suck_now.php has permissions (like 775)
+- add new line 0 0 1 * * php {edusuckr_root_folder}/clear_log.php to crontab with crontab -e
+- make sure that suck_now.php and clear_log.php have permissions (like 775)

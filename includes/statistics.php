@@ -60,5 +60,21 @@ class Statistics {
         }  
         return "No log recorded with this id!";  
     }
+
+    /**
+     * Removed any logs older than one month.
+     * @retrun boolean
+     */
+    public static function removeOldLogEntries() {
+        global $db;
+        $query = "DELETE FROM " . DB_PREFIX . "log WHERE created < DATE_SUB(NOW(), INTERVAL 1 MONTH)";
+        $result = $db->query($query);
+
+        if ($result) {
+            return true;
+        }
+
+        return false;
+    }
 }
 ?>
