@@ -144,9 +144,16 @@
         }
 
 		function getParticipantPosts($param) {
+            // Make base schemaless
+            $blog_base = makeUrlSchemaless($param[1]);
 			// Check in case base does not have slash in the end
-			$backup_base = preg_replace('{/$}', '', $param[1]);
-			$query = "SELECT DISTINCT id, c.link AS link, title, content, date, author, blogger_id, base FROM ".DB_PREFIX."posts c LEFT JOIN ".DB_PREFIX."course_rels_posts r ON c.link=r.link WHERE r.course_guid={$param[0]} AND !r.hidden AND (c.base='{$param[1]}' OR c.base='{$backup_base}') ORDER BY date DESC";
+			$backup_base = preg_replace('{/$}', '', $blog_base);
+            $query = "SELECT DISTINCT id, c.link AS link, title, content, date, author, blogger_id, base FROM " . DB_PREFIX . "posts c"
+                . " LEFT JOIN " . DB_PREFIX . "course_rels_posts r ON c.link=r.link"
+                . " WHERE r.course_guid={$param[0]}"
+                . " AND !r.hidden"
+                . " AND (c.base LIKE '%" . mysql_real_escape_string($blog_base) . "' OR c.base LIKE '%" . mysql_real_escape_string($backup_base) . "')"
+                . " ORDER BY date DESC";
 			$result = $this->query($query);
             $comments = array();
             if($result && mysql_num_rows($result)) {

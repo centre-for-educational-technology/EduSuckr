@@ -1,5 +1,21 @@
 <?php
 
+    /**
+     * Remove http: or https: from the beginning of the URL.
+     *
+     * @param string $url URL to turn schemaless
+     * @return string
+     */
+    function makeUrlSchemaless($url) {
+        return preg_replace('/^https?:\/\//', '//', $url);
+    }
+
+    /**
+     * Builds and returns progress table of a course.
+     *
+     * @param int $guid Course identifier
+     * @return string Serialized data array
+     */
     function getProgressTable($guid) {
         $body_data = array();
         $course_starting_date = 0;
@@ -35,7 +51,19 @@
 		return serialize($body_data);
     }
 
+    /**
+     * Get progress of single participant.
+     *
+     * @param array $assignments Array of course assignments
+     * @param string $posts_url Participant blog base
+     * @param int $course_starting_date The beginning of the course
+     * @param int $guid Course identifier
+     * @return string
+     */
     function getSingleParticipantProgress($assignments, $posts_url, $course_starting_date, $guid) {
+        // Make base schemaless
+        $posts_url = makeUrlSchemaless($posts_url);
+
 	    $returned = array();
 		$i = 0;
 		$prev_a_start = 0;
@@ -54,13 +82,24 @@
 			$i++;
 			// get posts from DB
 			global $db;
-            $query = "SELECT id, p.link as link, title  FROM ".DB_PREFIX."posts p LEFT JOIN ".DB_PREFIX."course_rels_posts r ON p.link=r.link WHERE course_guid=".$guid." AND content LIKE '%".mysql_real_escape_string($assignment->blog_post_url)."%' AND p.link LIKE '".mysql_real_escape_string($posts_url)."%' AND !hidden ORDER BY date DESC";
+            $query = "SELECT id, p.link as link, title  FROM " . DB_PREFIX . "posts p"
+                . " LEFT JOIN " . DB_PREFIX . "course_rels_posts r"
+                . " ON p.link=r.link WHERE course_guid=" . $guid
+                . " AND content LIKE '%" . mysql_real_escape_string($assignment->blog_post_url) . "%'"
+                . " AND p.link LIKE '%" . mysql_real_escape_string($posts_url) . "%'"
+                . " AND !hidden ORDER BY date DESC";
             $result = $db->query($query);
             if( mysql_num_rows($result) ) {
                 $item = mysql_fetch_object($result);
 	        $returned[$key] = array('state' => 2, 'link' => $item->link, 'title' => $item->title, 'id' => $item->id);
             } else {
-                $query = "SELECT id, p.link as link, title FROM ".DB_PREFIX."posts p LEFT JOIN ".DB_PREFIX."course_rels_posts r ON p.link=r.link WHERE course_guid=".$guid." AND p.link LIKE '".mysql_real_escape_string($posts_url)."%' AND date>".$frame_start_ts." AND date<=".$frame_end_ts." AND !r.hidden ORDER BY date DESC";
+                $query = "SELECT id, p.link as link, title FROM " . DB_PREFIX . "posts p"
+                    . " LEFT JOIN " . DB_PREFIX . "course_rels_posts r"
+                    . " ON p.link=r.link WHERE course_guid=" . $guid
+                    . " AND p.link LIKE '%" . mysql_real_escape_string($posts_url) . "%'"
+                    . " AND date>" . $frame_start_ts
+                    . " AND date<=" . $frame_end_ts
+                    . " AND !r.hidden ORDER BY date DESC";
                 $result = $db->query($query);
                 if( mysql_num_rows($result) ) {
                     $item = mysql_fetch_object($result);
@@ -73,10 +112,22 @@
 		return $returned;
 	}
 	
+    /**
+     * Retruns serialized data for course participants linking connections.
+     *
+     * @param int $educourse_guid Course identifier
+     * @return string Serialized data array
+     */
 	function getCourseLinkingConnections($educourse_guid) {
 	    return serialize(getCourseLinkingConnectionsData($educourse_guid));
 	}
 
+    /**
+     * Returns array of linking connections for the course.
+     *
+     * @param int $educourse_guid Course identifier
+     * @return array
+     */
 	function getCourseLinkingConnectionsData($educourse_guid) {
 		$educourse_connections = array();
 		$connected_participants = array();
@@ -85,7 +136,19 @@
 	    $participants = $db->getCourseParticipants($educourse_guid);
 		foreach ($participants as $key => $participant) {
 			$all_participants[] = $participant->firstname . ' ' . $participant->lastname;
-	        $query = "SELECT * FROM ".DB_PREFIX."posts pos LEFT JOIN ".DB_PREFIX."participants par ON link LIKE CONCAT(blog_base,'%') LEFT JOIN ".DB_PREFIX."course_rels_posts r ON pos.link=r.link WHERE pos.content LIKE '%".mysql_real_escape_string($participant->blog_base)."%' AND par.participant_guid!=".$participant->participant_guid." AND par.course_guid=".$educourse_guid." AND r.course_guid=".$educourse_guid." AND !hidden";
+            // Make blog base schemaless
+            $participant_blog_base = makeUrlSchemaless($participant->blog_base);
+
+            // XXX Using REPLACE like that is no good
+            // Need to set the schemaless blog_base
+            $query = "SELECT * FROM " . DB_PREFIX . "posts pos"
+                . " LEFT JOIN " . DB_PREFIX . "participants par ON link LIKE CONCAT('%',REPLACE(REPLACE(blog_base, 'https://', '//'), 'http://', '//'),'%')"
+                . " LEFT JOIN " . DB_PREFIX . "course_rels_posts r ON pos.link=r.link"
+                . " WHERE pos.content LIKE '%" . mysql_real_escape_string($participant_blog_base) . "%'"
+                . " AND par.participant_guid!=" . $participant->participant_guid
+                . " AND par.course_guid=" . $educourse_guid
+                . " AND r.course_guid=" . $educourse_guid
+                . " AND !hidden";
             $result = $db->query($query);
             while($item = mysql_fetch_object($result)) {
 		        if (!in_array($participant->firstname . ' ' . $participant->lastname, $connected_participants))
@@ -94,7 +157,16 @@
 					$connected_participants[] = $item->firstname . ' ' . $item->lastname;
 			    $educourse_connections[] = array('person' => $item->firstname . ' ' . $item->lastname , 'links' => $participant->firstname . ' ' . $participant->lastname, 'size' => 1);
 		    }
-		    $query = "SELECT * FROM ".DB_PREFIX."comments pos LEFT JOIN ".DB_PREFIX."participants par ON link LIKE CONCAT(blog_base,'%') LEFT JOIN ".DB_PREFIX."course_rels_comments r ON pos.link=r.link WHERE pos.content LIKE '%".mysql_real_escape_string($participant->blog_base)."%' AND par.participant_guid!=".$participant->participant_guid." AND par.course_guid=".$educourse_guid." AND r.course_guid=".$educourse_guid." AND !hidden";
+            // XXX Using REPLACE like that is no good
+            // Need to set the schemaless blog_base
+            $query = "SELECT * FROM " . DB_PREFIX . "comments pos"
+                . " LEFT JOIN " . DB_PREFIX . "participants par ON link LIKE CONCAT('%',REPLACE(REPLACE(blog_base, 'https://', '//'), 'http://', '//'),'%')"
+                . " LEFT JOIN " . DB_PREFIX . "course_rels_comments r ON pos.link=r.link"
+                . " WHERE pos.content LIKE '%" . mysql_real_escape_string($participant_blog_base) . "%'"
+                . " AND par.participant_guid!=" . $participant->participant_guid
+                . " AND par.course_guid=" . $educourse_guid
+                . " AND r.course_guid=" . $educourse_guid
+                . " AND !hidden";
             $result = $db->query($query);
             while($item = mysql_fetch_object($result)) {
 		        if (!in_array($participant->firstname . ' ' . $participant->lastname, $connected_participants))
@@ -116,6 +188,12 @@
 		return $educourse_connections;
 	}
 	
+    /**
+     * Returns statistics of course linking connections.
+     *
+     * @param int $educourse_guid Course identifier
+     * @return string Structure data
+     */
 	function getCourseLinkingConnectionsStatistics($educourse_guid) {
 	    $data = array();
 	    $elems = array();
